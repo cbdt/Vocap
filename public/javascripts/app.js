@@ -7,16 +7,28 @@ let images = [];
 let seconds = 0;
 let emotions = [];
 let level;
-
+let periods = [];
+let t = 0;
 
 const repartitions  =  [
-  {"D1": 0.6, "D2": 0.3, "D3": 0.1},
-  {"D1": 0.33, "D2": 0.34, "D3": 0.33},
-  {"D1": 0.1, "D2": 0.3, "D3": 0.6},
+  [0.6, 0.9, 1],
+  [0.33, 0.67, 1], //#048B9A
+  [0.1, 0.4, 1],
 ]
 
 window.SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
 
+
+function playSound(name, audio) {
+  var sound = new Audio(name);
+  sound.loop = false;
+  audio.volume = 0.1
+  window.setTimeout(() => {
+    console.log("reprise")
+    audio.volume=0.3
+}, 2500);
+  sound.play();
+}
 
 function getScoreFromEmotion(emotions) {
   let maxValue = 0;
@@ -27,9 +39,11 @@ function getScoreFromEmotion(emotions) {
       maxLabel = emotion.Type
     }
   }
+  let emotion = document.getElementById("emotion")
   switch(maxLabel) {
     case "HAPPY":
-    case "CALM": 
+    case "CALM":
+      emotion.innerHTML = "😀" 
       return 10;
     case "SURPRISED":
       return 8;
@@ -68,11 +82,48 @@ function talk(text) {
   speechSynthesis.speak(ssu)
 }
 
+function demandeAge(){
+  message="Bonjour, quel age as tu ?"
+  do{
+      var age = parseInt(window.prompt(message, "ex : 6"), 10);
+      message="Entre un chiffre s'il-te-plait."
+  }while(isNaN(age) || age < 1);
+  return age;
+}
+
+
+function play(idPlayer, control) {
+  var player = document.querySelector('#' + idPlayer);
+  control = control.firstChild
+  if (player.paused) {
+      player.play();
+      control.classList.remove('fa-volume-mute')
+      control.classList.add('fa-volume-up')
+  } else {
+      player.pause(); 
+      control.classList.remove('fa-volume-up')
+      control.classList.add('fa-volume-mute')
+  }
+}
+
 
 
 window.onload = function(){
   let video = document.getElementById("video");
+  let audio = document.getElementById("audioPlayer");
   let canvas = document.createElement('canvas');
+  let age = demandeAge();
+
+  if(age<=4) {
+    t = 12 * (60*1000)
+  } else if (age == 5) {
+    t = 20 * (60*1000)
+  } else {
+    t = 25 * (60*1000)
+  }
+
+
+  audio.volume = 0.3;
 
   analyzeImage()
   
@@ -84,7 +135,7 @@ window.onload = function(){
 
   fetch("/json", {method: 'GET'}).then((response) => response.json()).then((res) => {
     data = res
-    initTest()
+    initTest().then(() => {})
   })
 
   let i = 0;
@@ -113,27 +164,8 @@ window.onload = function(){
   
     }
   }
-  
-  let repeatQuestion = function(question) {
-    return new Promise(function(resolve, reject) {
-      talk(question.name)
-      displayQuestion(question).then((time) => {
-        console.log("YEAHH en " + time)
-        resolve(10000)
-      }).catch((time) => {
-        talk(question.name)
-        displayQuestion(question).then(() => {
-        resolve(10000)
-        }).catch(() => {
-          talk(question.name)
-          talk("Tant pis, tu réessaieras plus tard.")
-          resolve(10000)
-        })
-      })
-    });
-  }
 
-  function initTest() {
+  async function initTest() {
     let rand = Math.floor(Math.random()*data.D1.length)
     images.push(data.D1[rand])
     rand = Math.floor(Math.random()*data.D2.length)
@@ -141,92 +173,126 @@ window.onload = function(){
     rand = Math.floor(Math.random()*data.D3.length)
     images.push(data.D3[rand])
     recognition.start()
-    let moyenne = 0;
-    displayQuestion(images[0]).then((time) => {
-      console.log("YEAHH IMG1 en " + time)
-      moyenne = (moyenne + (10000 - (time))/1000)/2;
-      displayQuestion(images[1]).then((time) => {
-        console.log("YEAHH IMG2 en " + time)
-        moyenne = (moyenne + (10000 - (time))/1000)/2;
-        displayQuestion(images[2]).then((time) => {
-          console.log("YEAHH IMG3 en " + time)
-          moyenne = (moyenne + (10000 - (time))/1000)/2;
-          calculScore(moyenne)
-        }).catch((time) => {
-          if(time !== 0){ 
-            repeatQuestion(images[2]).then((time) => {
-            moyenne = (moyenne + (10000 - (time))/1000)/2; 
-            calculScore(moyenne)
-            })
-          }
-        })
-      }).catch((time) => {
-        repeatQuestion(images[1]).then((time) => {
-          displayQuestion(images[2]).then((time) => {
-            console.log("YEAHH IMG3 en " + time)
-            moyenne = (moyenne + (10000 - (time))/1000)/2;
-            calculScore(moyenne)
-          }).catch((time) => {
-            if(time !== 0){ 
-              console.log("Faux IMG3 en " + time)
-              moyenne = (moyenne + (10000 - (time))/1000)/2;
-              repeatQuestion(images[2]).then((time) => {
-                moyenne = (moyenne + (10000 - (time))/1000)/2;
-                calculScore(moyenne)
-              })
-          }
-          })
-        })
-      })
-    }).catch((time) => {
-      repeatQuestion(images[0]).then(() => {
-        displayQuestion(images[1]).then((time) => {
-          console.log("YEAH IMG2 en "+ time)
-          moyenne = (moyenne + (10000 - (time))/1000)/2;
-          displayQuestion(images[2]).then((time) => {
-            console.log("YEAHH IMG3 en " + time)
-            moyenne = (moyenne + (10000 - (time))/1000)/2;
-          }).catch((time) => {
-            if(time !== 0){ 
-              console.log("Faux IMG3 en " + time)
-              repeatQuestion(images[2]).then((time) => {
-                moyenne = (moyenne + (10000 - (time))/1000)/2;
-                calculScore(moyenne)
-              })
-          }
-          })
-        }).catch((time) => {
-          repeatQuestion(images[1]).then((time) => {
-            displayQuestion(images[2]).then((time) => {
-              console.log("YEAHH IMG3 en " + time)
-              moyenne = (moyenne + (10000 - (time))/1000)/2;
-            }).catch((time) => {
-              if(time !== 0){ 
-                console.log("Faux IMG3 en " + time)
-                repeatQuestion(images[2]).then((time) => {
-                  moyenne = (moyenne + (10000 - (time))/1000)/2;
-                  calculScore(moyenne)
-                })
-              }
-            })
-          })
-        })
-      })
-    })
+    await askQuestions(3, images)
+    calculScore()
   }
+
+  async function askQuestions(number, images=[], level=0, timeLimit = 0) {
+    let success = true;
+    let hasImages = (images.length !== 0);
+    let hasTimedOut = false;
+    let previousImage;
+    let currentImage;
+
+    for(let i = 0; i < number; i++) {
+      if(timeLimit !== 0) {
+        let curr = new Date()
+        if(curr >= timeLimit) {
+          return 
+        }  
+      }
+      if(hasImages) {
+        if(!success){
+          previousImage = images[i-1];  
+        }
+        currentImage = images[i]
+        
+      } else {
+        let proba = Math.random();
+        let rank = repartitions[level];
+
+        for(p of rank) {
+          if(proba < p) {
+            index = rank.indexOf(p)+1
+            break;
+          }
+        }
+        formattedIndex = "D"+index;  
+        rand = Math.floor(Math.random()*data[formattedIndex].length)
+        currentImage = data[formattedIndex][rand]
+      }
+      name = currentImage.name
   
-  function calculScore(moyenne) {
-    console.log("FINISH")
-    let scoreEmotions = (emotions.reduce((a, b) => {return a+b}))/emotions.length
-    let scoreTime = moyenne
-    let score = scoreEmotions + scoreTime
+      if(!success) {
+        let a;
+        talk(previousImage.name)
+        a = await displayQuestion(previousImage)
+        success = a[0]
+        hasTimedOut = a[1]
+        if(hasTimedOut) {
+          continue;
+        }
+        if(success) {
+          a = await displayQuestion(currentImage)
+          success = a[0]
+          hasTimedOut = a[1]
+          playSound("../data/win.mp3", audio)
+          continue;
+        }
+        talk(previousImage.name)
+        a = await displayQuestion(previousImage)
+        success = a[0]
+        hasTimedOut = a[1]
+        if(hasTimedOut) {
+          continue;
+        }
+        if(!success) {
+          talk("C'est pas grave, tu feras mieux la prochaine fois")
+          success = true
+        }
+      } else {
+        a = await displayQuestion(currentImage)
+        if(success) {
+          playSound("../data/win.mp3", audio)
+        }
+        success = a[0]
+        if(success) {
+          playSound("../data/win.mp3", audio)
+        } 
+        if(!hasImages){
+          previousImage = currentImage;
+        }
+        if(!success && i === number-1) {
+          talk(currentImage.name)
+          a = await displayQuestion(currentImage)
+          success = a[0]
+          if(!success) {
+            a = await displayQuestion(currentImage)
+          }
+        }
+      }
+    }
+  }
+
+  
+  function calculScore() {
+    let scoreTime = 0;
+    let nb = 1;
+    let score;
+    for(let period of periods) {
+      scoreTime = (scoreTime + ((10000-period)/1000)) / nb
+      if(nb === 1) {
+        nb++
+      }
+    }
+    if(emotions.length !== 0) {
+      let scoreEmotions = (emotions.reduce((a, b) => {return a+b}))/emotions.length
+      score = scoreEmotions + scoreTime
+    } else {
+      score = 0
+    }
+    console.log(score)
     determineLevel(score)
     launchExercices()
   }
 
   function launchExercices() {
-    console.log(level)
+    let curDate = new Date()
+    let start = new Date(curDate.getTime() + t)
+    console.log(start)
+
   }
+
 
   function determineLevel(score) {
     if(score >= 15) {
@@ -238,30 +304,29 @@ window.onload = function(){
     }
   }
 
-  let displayQuestion = function(question) {
-      return new Promise(function(resolve, reject) { 
+    let displayQuestion =  async function(question) {
+      return new Promise((resolve, reject) => {
         let description = question.name.normalize('NFD').replace(/[\u0300-\u036f]/g, "");
         updateDOM(question);
         let startDate = new Date();
         extractEmotions(function(data) {
           emotions.push(getScoreFromEmotion(data))
-        
         })
-          console.log(data)
-          let x = setTimeout(() => {
-              console.log("Temps imparti")
-              clearTimeout(x)
-              reject(0)
-          }, 20000);
-          dictate(function(data) {
+        let x = setTimeout(() => {
+            console.log("Temps imparti")
             clearTimeout(x)
-            let success = data.split(" ").includes(description.toLowerCase())
-            let endDate = new Date();
-            if(success) {
-              resolve(endDate-startDate)
-            } else {
-              reject(endDate-startDate)
-            }
+            resolve([true, true])
+        }, 20000);
+        dictate(function(data) {
+          clearTimeout(x)
+          let success = data.split(" ").includes(description.toLowerCase())
+          let endDate = new Date();
+          periods.push(endDate-startDate)
+          if(success) {
+            resolve([true, false])
+          } else {
+            resolve([false, false])
+          }
         })
       })
     };
@@ -285,8 +350,6 @@ window.onload = function(){
       cb(data)
     })
     .catch(error => {
-      console.log("error")
-      return null;  
     });
       
   }

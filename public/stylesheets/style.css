@@ -6,14 +6,21 @@ body {
   width: 600px;
 }
 #description {
-  font-size: 50px;
+  font-size: 70px;
+  font-weight: 900;
+  color: #048B9A;
 }
 
-.microphone {
-  color: rgb(0, 0, 0);
+body {
+  background-color: #FFFFFF;
+}
+
+img {
+
+  transition: opacity 1s ease-in-out;
+}
+
+.emotion {
   font-size: 80px;
-}
-
-.microphone.active {
-  color: rgb(201, 50, 50);
+  font-size: right;
 }
