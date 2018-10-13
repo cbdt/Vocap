@@ -178,11 +178,6 @@
             "name":"girafe",
             "img":"./data/D3/girafe.png",
             "difficulty":3
-        },
-        {
-            "name":"éléphant",
-            "img":"./data/D3/elephant.png",
-            "difficulty":3
         }
 
     ]

@@ -9,7 +9,8 @@ let emotions = [];
 let level;
 let periods = [];
 let t = 0;
-
+let finished = false;
+var x;
 function choose(choices) {
   var index = Math.floor(Math.random() * choices.length);
   return choices[index];
@@ -151,18 +152,18 @@ window.onload = function(){
   const recognition = new SpeechRecognition();
   recognition.lang = "fr-fr";
   recognition.interimResults = false;
-  recognition.continuous = true;
-
+  recognition.continuous = true;-
 
   fetch("/json", {method: 'GET'}).then((response) => response.json()).then((res) => {
-    data = res
-    recognition.start()
-    initTest()
+    data = res;
+    recognition.start();
+    initTest();
   })
 
   let i = 0;
   const dictate = (cb) => {
     recognition.onresult = (event) => {
+      clearTimeout(x)
       const speechToText = event.results[i][0].transcript;
       i++;
       if(speechToText === "verre") {
@@ -203,23 +204,25 @@ window.onload = function(){
     let hasImages = (images.length !== 0);
     let hasTimedOut = false;
     let currentImage;
+    let a;
 
     for(let i = 0; i < number; i++) {
+      
       if(timeLimit !== 0) {
         let curr = new Date()
         if(curr >= timeLimit) {
           return 
         }  
       }
+
       if(hasImages) {
         currentImage = images[i]
       } else {
         let proba = Math.random();
         let rank = repartitions[level];
-
-        for(let p of rank) {
-          if(proba < p) {
-            index = rank.indexOf(p)+1
+        for(let i = 0; i < rank.length; i++) {
+          if(proba < rank[i]) {
+            index = rank.indexOf(rank[i])+1
             break;
           }
         }
@@ -227,44 +230,51 @@ window.onload = function(){
         rand = Math.floor(Math.random()*data[formattedIndex].length)
         currentImage = data[formattedIndex][rand]
       }
+
       name = currentImage.name
-  
-      
+
       a = await displayQuestion(currentImage)
       success = a[0]
+      hasTimedOut = a[1]
 
-      if(!success) {
-        let a;
-        talk(name);
-        a = await displayQuestion(currentImage);
-        success = a[0];
-        hasTimedOut = a[1];
-        if(hasTimedOut) {
-          success = true;
-          continue;
-        }else if(success) {
-            goodJob(name);
-            continue;
+      if(!hasTimedOut) {
+        if(success) {
+          goodJob(name);
+        } else {
+          talk(name);
+          a = await displayQuestion(currentImage);
+          success = a[0];
+          hasTimedOut = a[1];
+          if(!hasTimedOut) {
+            if(success) {
+                goodJob(name);
+                success = true;
+            } else {
+              talk(name)
+              a = await displayQuestion(currentImage)
+              success = a[0]
+              hasTimedOut = a[1]
+              if(!hasTimedOut) {
+                if(success) {
+                  goodJob(name)
+                } else {
+                  talk("C'est pas grave, tu feras mieux la prochaine fois")
+                  success = true
+                }
+              } else {
+                clearTimeout(x)
+                console.log("TIME OUT")
+              }
+            }
+          } else {
+            clearTimeout(x)
+            console.log("TIME OUT")
+          }
         }
-        talk(name)
-        a = await displayQuestion(currentImage)
-        success = a[0]
-        hasTimedOut = a[1]
-        if(hasTimedOut) {
-          success = true;
-          continue;
-        }else if(!success) {
-          talk("C'est pas grave, tu feras mieux la prochaine fois")
-        }else {
-          goodJob(name)
-        }
-        success = true
       } else {
-        goodJob(name)
+        clearTimeout(x)
+        console.log("TIME OUT")
       }
-      if(!hasImages){
-        previousImage = currentImage;
-      }      
     }
   }
 
@@ -286,7 +296,9 @@ window.onload = function(){
       score = 0
     }
     determineLevel(score)
-    await launchExercices()
+    if(!finished) {
+      await launchExercices()      
+    } 
   }
 
   async function launchExercices() {
@@ -296,6 +308,7 @@ window.onload = function(){
     await askQuestions(50, [], level, middleEnd);
     talk("Nous allons refaire un test ensemble pour ré-evaluer ton niveau")
     initTest()
+    finished = true;
     await askQuestions(50, [], level, end);
   }
 
@@ -305,36 +318,38 @@ window.onload = function(){
       level = 3;
     } else if(score >= 10) {
       level = 2;
-    }else {
+    } else {
       level = 1;
     }
   }
 
-    let displayQuestion =  async function(question) {
-      return new Promise((resolve, reject) => {
-        let description = question.name.normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-        updateDOM(question);
-        let startDate = new Date();
-        extractEmotions(function(data) {
-          emotions.push(getScoreFromEmotion(data))
-        })
-        let x = setTimeout(() => {
-            clearTimeout(x)
-            resolve([true, true])
-        }, 20000);
-        dictate(function(data) {
-          clearTimeout(x)
-          let success = data.split(" ").includes(description.toLowerCase())
-          let endDate = new Date();
-          periods.push(endDate-startDate)
-          if(success) {
-            resolve([true, false])
-          } else {
-            resolve([false, false])
-          }
-        })
+  let displayQuestion =  async function(question) {
+    clearTimeout(x)
+    return new Promise((resolve, reject) => {
+      let description = question.name.normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+      updateDOM(question);
+      let startDate = new Date();
+      extractEmotions(function(data) {
+        emotions.push(getScoreFromEmotion(data))
       })
-    };
+      x = setTimeout(() => {
+          clearTimeout(x)
+          resolve([true, true])
+      }, 10000);
+      
+      dictate(function(data) {
+        clearTimeout(x)
+        let success = data.split(" ").includes(description.toLowerCase())
+        let endDate = new Date();
+        periods.push(endDate-startDate)
+        if(success) {
+          resolve([true, false])
+        } else {
+          resolve([false, false])
+        }
+      })
+    })
+  };
   
 
   function extractEmotions(cb) {
