@@ -8,3 +8,12 @@ body {
 #description {
   font-size: 50px;
 }
+
+.microphone {
+  color: rgb(0, 0, 0);
+  font-size: 80px;
+}
+
+.microphone.active {
+  color: rgb(201, 50, 50);
+}

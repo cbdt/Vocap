@@ -1,7 +1,11 @@
 extends layout
 
 block content
+  video#video.d-none(width="320", height="240", autoplay="true")
   .image.mt-5
-    img#image.mx-auto.d-block(src="images/banane.png")
-  div.description#description.font-weight-bold.text-center.pt-5
-    span Banane
+    img#image.mx-auto.d-block
+  div.description.font-weight-bold.text-center.pt-5
+    span#description
+  div.text-box
+  a#record
+    i.fas.fa-microphone.microphone
