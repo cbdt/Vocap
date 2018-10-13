@@ -1,8 +1,12 @@
 
+const VIDEOHEIGHT = 480;
+const VIDEOWIDTH = 680;
 var idInterval = null;
 var data = null;
 let images = [];
 let seconds = 0;
+window.SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+
 
 function updateDOM(obj){
   var img = document.getElementById("image");
@@ -28,25 +32,17 @@ function talk(text) {
 }
 
 
-window.SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-
-
 
 window.onload = function(){
   let video = document.getElementById("video");
   let canvas = document.createElement('canvas');
-  let text = document.getElementById("emotion");
-  let record = document.getElementById("record");
-  let paragraph = document.createElement('p');
-  let container = document.querySelector('.text-box');
+
+  analyzeImage()
   
-
-  container.appendChild(paragraph);
-
-
   const recognition = new SpeechRecognition();
   recognition.lang = "fr-fr";
   recognition.interimResults = false;
+  recognition.continuous = true;
 
 
   fetch("/json", {method: 'GET'}).then((response) => response.json()).then((res) => {
@@ -54,27 +50,48 @@ window.onload = function(){
     initTest()
   })
 
-  const dictate = () => {
-    record.firstChild.classList.add("active");
-    recognition.start()
+  let i = 0;
+  const dictate = (cb) => {
     recognition.onresult = (event) => {
-      const speechToText = event.results[0][0].transcript;
-      record.classList.remove("active");
-      paragraph.textContent = speechToText;
+      const speechToText = event.results[i][0].transcript;
+      i++;
+      console.log("Texte enfant: " + speechToText)
+      cb(speechToText)
     }
   }
 
 
-
-  record.addEventListener("click", () => {
-    dictate()
-  })
-
-  function incrementSeconds() {
-    seconds++;
+  function analyzeImage() {
+    if (navigator.mediaDevices.getUserMedia) {       
+      navigator.mediaDevices.getUserMedia({video: true, audio: false})
+      .then(function(stream) {
+        video.srcObject = stream;
+      })
+      .catch(function(error) {
+        console.log("Something went wrong! 😢");
+      });
+  
+    }
   }
-
-
+  
+  let repeatQuestion = function(question) {
+    return new Promise(function(resolve, reject) {
+      talk(question.name)
+      displayQuestion(question).then((time) => {
+        console.log("YEAHH en " + time)
+        resolve()
+      }).catch((time) => {
+        talk(question.name)
+        displayQuestion(question).then(() => {
+        resolve()
+        }).catch(() => {
+          talk(question.name)
+          talk("Tant pis, tu réessaieras plus tard.")
+          resolve()
+        })
+      })
+    });
+  }
 
   function initTest() {
     let rand = Math.floor(Math.random()*data.D1.length)
@@ -83,26 +100,92 @@ window.onload = function(){
     images.push(data.D2[rand])
     rand = Math.floor(Math.random()*data.D3.length)
     images.push(data.D3[rand])
-    let currentImage = images[2]
-    updateDOM(currentImage)
-    var int1 = setInterval(incrementSeconds, 1000);
-    
-    if(seconds === 10) {
+    recognition.start()
 
-    }
+    displayQuestion(images[0]).then((time) => {
+      console.log("YEAHH IMG1 en " + time)
+      displayQuestion(images[1]).then((time) => {
+        console.log("YEAHH IMG2 en " + time)
+        displayQuestion(images[2]).then((time) => {
+          console.log("YEAHH IMG3 en " + time)
+        }).catch((time) => {
+          console.log("Faux IMG3 en " + time)
+          repeatQuestion(images[2]).then(
+            console.log("fini")
+          )
+        })
+      }).catch((time) => {
+        repeatQuestion(images[1]).then((time) => {
+          displayQuestion(images[2]).then((time) => {
+            console.log("YEAHH IMG3 en " + time)
+          }).catch((time) => {
+            console.log("Faux IMG3 en " + time)
+            repeatQuestion(images[2]).then(() => {
+              console.log("fini")
+            })
+          })
+        })
+      })
+    }).catch((time) => {
+      repeatQuestion(images[0]).then(() => {
+        displayQuestion(images[1]).then((time) => {
+          console.log("YEAH IMG2 en "+ time)
+          displayQuestion(images[2]).then((time) => {
+            console.log("YEAHH IMG3 en " + time)
+          }).catch((time) => {
+            console.log("Faux IMG3 en " + time)
+            repeatQuestion(images[2]).then(() => {
+              console.log("fini")
+            })
+          })
+        }).catch((time) => {
+          repeatQuestion(images[1]).then((time) => {
+            displayQuestion(images[2]).then((time) => {
+              console.log("YEAHH IMG3 en " + time)
+            }).catch((time) => {
+              console.log("Faux IMG3 en " + time)
+              repeatQuestion(images[2]).then(() => {
+                console.log("fini")
+              })
+            })
+          })
+        })
+      })
+    })
+  }
+  
+
+  let displayQuestion = function(question) {
+      return new Promise(function(resolve, reject) { 
+        let description = question.name.normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+        updateDOM(question);
+        let startDate = new Date();
+        let emotions = extractEmotions()
+        let x = setInterval(() => {
+            clearInterval(x)
+            console.log("Temps imparti")
+            reject(0)
+        }, 20000);
+        dictate(function(data) {
+          clearInterval(x)
+          let success = data.split(" ").includes(description.toLowerCase())
+          let endDate = new Date();
+          if(success) {
+            resolve(endDate-startDate)
+          } else {
+            reject(endDate-startDate)
+          }
+      })
+    });
   }
 
-  
-
-  
-
-  function sendImage() {
-    canvas.setAttribute('width', video.videoWidth);
-    canvas.setAttribute('height', video.videoWidth);
+  function extractEmotions() {
+    canvas.setAttribute('width', VIDEOWIDTH);
+    canvas.setAttribute('height', VIDEOHEIGHT);
     canvas.getContext('2d').drawImage(video, 0, 0);
-    var data = canvas.toDataURL('image/png');
-      
-    let file = dataURLtoFile(data, 'face.png')
+    let data = canvas.toDataURL('image/png'); 
+    let file = dataURLtoFile(data, 'face.png');
+
     const form = new FormData()
     form.append('data',file,'face.png')
     fetch("/image", {
@@ -111,30 +194,13 @@ window.onload = function(){
     })
     .then((response) => response.json())
     .then((data)=>{
-      let maxLabel = ""
-      let maxValue = 0
-      for(emotion of data) {
-        if(emotion.Confidence > maxValue) {
-          maxValue = emotion.Confidence;
-          maxLabel = emotion.Type
-        }
-      }
-      text.innerHTML =  maxLabel
+      return data
     })
-    .catch(error => console.log("error"));
-      
-  }
-  if (navigator.mediaDevices.getUserMedia) {       
-    navigator.mediaDevices.getUserMedia({video: true, audio: false})
-    .then(function(stream) {
-
-      video.srcObject = stream;
-      idInterval = setInterval(sendImage, 4000)
-    })
-    .catch(function(error) {
-      console.log("Something went wrong! 😢");
+    .catch(error => {
+      console.log("error")
+      return null;  
     });
-
+      
   }
 }
 
