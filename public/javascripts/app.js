@@ -10,6 +10,11 @@ let level;
 let periods = [];
 let t = 0;
 
+function choose(choices) {
+  var index = Math.floor(Math.random() * choices.length);
+  return choices[index];
+}
+
 const repartitions  =  [
   [0.6, 0.9, 1],
   [0.33, 0.67, 1], //#048B9A
@@ -43,21 +48,28 @@ function getScoreFromEmotion(emotions) {
   switch(maxLabel) {
     case "HAPPY":
     case "CALM":
-      emotion.innerHTML = "😀" 
+      //emotion.innerHTML = "😀" 
       return 10;
     case "SURPRISED":
+      //emotion.innerHTML = "😮" 
       return 8;
     case "DISGUSTED":
+      //emotion.innerHTML = "🤮" 
       return 6;
     case "ANGRY":
+      //emotion.innerHTML = "😣" 
       return 2;
     case "SAD": 
+      //emotion.innerHTML = "😢" 
       return 1;
     default:
       return 0;
   }
 }
-
+function choose(choices) {
+  var index = Math.floor(Math.random() * choices.length);
+  return choices[index];
+}
 
 function updateDOM(obj){
   var img = document.getElementById("image");
@@ -80,6 +92,13 @@ function talk(text) {
   ssu.lang = "fr-FR"
   ssu.text = text
   speechSynthesis.speak(ssu)
+}
+
+let yeahWords = ["Bien joué", "Félicitation", "Bravo", "Super !"]
+
+function goodJob(text) {
+  word = choose(yeahWords)
+  talk(word+", le mot était " +  text + "!")
 }
 
 function demandeAge(){
@@ -114,8 +133,10 @@ window.onload = function(){
   let canvas = document.createElement('canvas');
   let age = demandeAge();
 
+  talk("Bienvenue sur Vocappe, Cape ou pas cape ?")
+
   if(age<=4) {
-    t = 12 * (60*1000)
+    t = 1 * (60*1000)
   } else if (age == 5) {
     t = 20 * (60*1000)
   } else {
@@ -135,7 +156,8 @@ window.onload = function(){
 
   fetch("/json", {method: 'GET'}).then((response) => response.json()).then((res) => {
     data = res
-    initTest().then(() => {})
+    recognition.start()
+    initTest()
   })
 
   let i = 0;
@@ -143,10 +165,10 @@ window.onload = function(){
     recognition.onresult = (event) => {
       const speechToText = event.results[i][0].transcript;
       i++;
-      console.log("Texte enfant: " + speechToText)
       if(speechToText === "verre") {
         cb("vert")
       }
+      console.log("Texte enfant: " + speechToText)
       cb(speechToText)
     }
   }
@@ -172,16 +194,14 @@ window.onload = function(){
     images.push(data.D2[rand])
     rand = Math.floor(Math.random()*data.D3.length)
     images.push(data.D3[rand])
-    recognition.start()
     await askQuestions(3, images)
-    calculScore()
+    await calculScore()
   }
 
   async function askQuestions(number, images=[], level=0, timeLimit = 0) {
     let success = true;
     let hasImages = (images.length !== 0);
     let hasTimedOut = false;
-    let previousImage;
     let currentImage;
 
     for(let i = 0; i < number; i++) {
@@ -192,16 +212,12 @@ window.onload = function(){
         }  
       }
       if(hasImages) {
-        if(!success){
-          previousImage = images[i-1];  
-        }
         currentImage = images[i]
-        
       } else {
         let proba = Math.random();
         let rank = repartitions[level];
 
-        for(p of rank) {
+        for(let p of rank) {
           if(proba < p) {
             index = rank.indexOf(p)+1
             break;
@@ -213,59 +229,47 @@ window.onload = function(){
       }
       name = currentImage.name
   
+      
+      a = await displayQuestion(currentImage)
+      success = a[0]
+
       if(!success) {
         let a;
-        talk(previousImage.name)
-        a = await displayQuestion(previousImage)
-        success = a[0]
-        hasTimedOut = a[1]
+        talk(name);
+        a = await displayQuestion(currentImage);
+        success = a[0];
+        hasTimedOut = a[1];
         if(hasTimedOut) {
+          success = true;
           continue;
+        }else if(success) {
+            goodJob(name);
+            continue;
         }
-        if(success) {
-          a = await displayQuestion(currentImage)
-          success = a[0]
-          hasTimedOut = a[1]
-          playSound("../data/win.mp3", audio)
-          continue;
-        }
-        talk(previousImage.name)
-        a = await displayQuestion(previousImage)
-        success = a[0]
-        hasTimedOut = a[1]
-        if(hasTimedOut) {
-          continue;
-        }
-        if(!success) {
-          talk("C'est pas grave, tu feras mieux la prochaine fois")
-          success = true
-        }
-      } else {
+        talk(name)
         a = await displayQuestion(currentImage)
-        if(success) {
-          playSound("../data/win.mp3", audio)
-        }
         success = a[0]
-        if(success) {
-          playSound("../data/win.mp3", audio)
-        } 
-        if(!hasImages){
-          previousImage = currentImage;
+        hasTimedOut = a[1]
+        if(hasTimedOut) {
+          success = true;
+          continue;
+        }else if(!success) {
+          talk("C'est pas grave, tu feras mieux la prochaine fois")
+        }else {
+          goodJob(name)
         }
-        if(!success && i === number-1) {
-          talk(currentImage.name)
-          a = await displayQuestion(currentImage)
-          success = a[0]
-          if(!success) {
-            a = await displayQuestion(currentImage)
-          }
-        }
+        success = true
+      } else {
+        goodJob(name)
       }
+      if(!hasImages){
+        previousImage = currentImage;
+      }      
     }
   }
 
   
-  function calculScore() {
+  async function calculScore() {
     let scoreTime = 0;
     let nb = 1;
     let score;
@@ -281,16 +285,18 @@ window.onload = function(){
     } else {
       score = 0
     }
-    console.log(score)
     determineLevel(score)
-    launchExercices()
+    await launchExercices()
   }
 
-  function launchExercices() {
+  async function launchExercices() {
     let curDate = new Date()
-    let start = new Date(curDate.getTime() + t)
-    console.log(start)
-
+    let middleEnd = new Date(curDate.getTime() + (t/2))
+    let end = new Date(curDate.getTime() + (t))
+    await askQuestions(50, [], level, middleEnd);
+    talk("Nous allons refaire un test ensemble pour ré-evaluer ton niveau")
+    initTest()
+    await askQuestions(50, [], level, end);
   }
 
 
@@ -313,7 +319,6 @@ window.onload = function(){
           emotions.push(getScoreFromEmotion(data))
         })
         let x = setTimeout(() => {
-            console.log("Temps imparti")
             clearTimeout(x)
             resolve([true, true])
         }, 20000);
