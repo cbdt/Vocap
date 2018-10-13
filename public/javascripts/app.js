@@ -31,7 +31,7 @@ function playSound(name, audio) {
   audio.volume = 0.1
   window.setTimeout(() => {
     console.log("reprise")
-    audio.volume=0.3
+    audio.volume=0.1
 }, 2500);
   sound.play();
 }
@@ -145,7 +145,7 @@ window.onload = function(){
   }
 
 
-  audio.volume = 0.3;
+  audio.volume = 0.03;
 
   analyzeImage()
   
@@ -236,44 +236,28 @@ window.onload = function(){
       a = await displayQuestion(currentImage)
       success = a[0]
       hasTimedOut = a[1]
-
-      if(!hasTimedOut) {
+      if(success) {
+        goodJob(name);
+      } else {
+        talk(name);
+        a = await displayQuestion(currentImage);
+        success = a[0];
+        hasTimedOut = a[1];
         if(success) {
-          goodJob(name);
+            goodJob(name);
+            success = true;
         } else {
-          talk(name);
-          a = await displayQuestion(currentImage);
-          success = a[0];
-          hasTimedOut = a[1];
-          if(!hasTimedOut) {
-            if(success) {
-                goodJob(name);
-                success = true;
-            } else {
-              talk(name)
-              a = await displayQuestion(currentImage)
-              success = a[0]
-              hasTimedOut = a[1]
-              if(!hasTimedOut) {
-                if(success) {
-                  goodJob(name)
-                } else {
-                  talk("C'est pas grave, tu feras mieux la prochaine fois")
-                  success = true
-                }
-              } else {
-                clearTimeout(x)
-                console.log("TIME OUT")
-              }
-            }
+          talk(name)
+          a = await displayQuestion(currentImage)
+          success = a[0]
+          hasTimedOut = a[1]
+          if(success) {
+            goodJob(name)
           } else {
-            clearTimeout(x)
-            console.log("TIME OUT")
+            talk("C'est pas grave, tu feras mieux la prochaine fois")
+            success = true
           }
         }
-      } else {
-        clearTimeout(x)
-        console.log("TIME OUT")
       }
     }
   }
@@ -324,7 +308,6 @@ window.onload = function(){
   }
 
   let displayQuestion =  async function(question) {
-    clearTimeout(x)
     return new Promise((resolve, reject) => {
       let description = question.name.normalize('NFD').replace(/[\u0300-\u036f]/g, "");
       updateDOM(question);
@@ -332,13 +315,8 @@ window.onload = function(){
       extractEmotions(function(data) {
         emotions.push(getScoreFromEmotion(data))
       })
-      x = setTimeout(() => {
-          clearTimeout(x)
-          resolve([true, true])
-      }, 10000);
       
       dictate(function(data) {
-        clearTimeout(x)
         let success = data.split(" ").includes(description.toLowerCase())
         let endDate = new Date();
         periods.push(endDate-startDate)
